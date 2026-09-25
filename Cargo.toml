@@ -1,0 +1,21 @@
+[package]
+name = "orchiddb-client"
+version = "0.1.0"
+edition = "2024"
+description = "Caller-owned Arrow execution for OrchidDB graph queries"
+license = "GPL-3.0-only"
+repository = "https://github.com/OrchidDB/OrchidDB-rust"
+publish = false
+
+[dependencies]
+orchiddb = { path = "../orchiddb", default-features = false }
+arrow = "58.2.0"
+
+[features]
+default = ["bundled-test-driver"]
+bundled-test-driver = ["duckdb/bundled"]
+
+[dev-dependencies]
+duckdb = "=1.10502.0"
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
