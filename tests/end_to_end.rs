@@ -1,11 +1,26 @@
+use duckdb::arrow::{
+    array::{Array, StringArray},
+    datatypes::SchemaRef,
+    error::ArrowError,
+    record_batch::{RecordBatch, RecordBatchReader},
+};
 use duckdb::{Connection, Statement};
-use duckdb::arrow::{array::{Array, StringArray}, record_batch::{RecordBatch, RecordBatchReader}, datatypes::SchemaRef, error::ArrowError};
 struct Batches<'a>(duckdb::Arrow<'a>);
-impl Iterator for Batches<'_> { type Item = Result<RecordBatch, ArrowError>; fn next(&mut self) -> Option<Self::Item> { self.0.next().map(Ok) } }
-impl RecordBatchReader for Batches<'_> { fn schema(&self) -> SchemaRef { self.0.get_schema() } }
+impl Iterator for Batches<'_> {
+    type Item = Result<RecordBatch, ArrowError>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map(Ok)
+    }
+}
+impl RecordBatchReader for Batches<'_> {
+    fn schema(&self) -> SchemaRef {
+        self.0.get_schema()
+    }
+}
 use orchiddb_client::{
+    ExecutionError, SqlDialect, SqlSession,
     compiler::{CompiledSql, compile},
-    ExecutionError, SqlDialect, SqlSession, execute,
+    execute,
 };
 use serde_json::{Value, json};
 
@@ -36,7 +51,11 @@ impl SqlSession for Session<'_> {
     async fn query<'a>(&'a mut self, query: &CompiledSql) -> Result<Batches<'a>, Self::Error> {
         self.calls += 1;
         self.statement = Some(self.db.prepare(&query.sql)?);
-        self.statement.as_mut().unwrap().query_arrow([]).map(Batches)
+        self.statement
+            .as_mut()
+            .unwrap()
+            .query_arrow([])
+            .map(Batches)
     }
 }
 const ADVERSARIAL_NAME: &str = "O'Reilly; DROP TABLE people; --";
@@ -85,7 +104,11 @@ async fn names(session: &mut Session<'_>, compiled: &CompiledSql) -> Vec<String>
     let mut result = Vec::new();
     for batch in &mut rows {
         let batch = batch.unwrap();
-        let names = batch.column(0).as_any().downcast_ref::<StringArray>().unwrap();
+        let names = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
         result.extend(names.iter().map(|v| v.unwrap().to_owned()));
     }
     result
@@ -105,8 +128,16 @@ async fn cypher_maps_nodes_and_relationships_against_real_tables() {
     let mut pairs = Vec::new();
     for batch in &mut rows {
         let batch = batch.unwrap();
-        let a = batch.column(0).as_any().downcast_ref::<StringArray>().unwrap();
-        let b = batch.column(1).as_any().downcast_ref::<StringArray>().unwrap();
+        let a = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        let b = batch
+            .column(1)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
         pairs.extend((0..batch.num_rows()).map(|i| (a.value(i).to_owned(), b.value(i).to_owned())));
     }
     assert_eq!(
@@ -205,7 +236,15 @@ async fn dropping_a_partial_cursor_allows_session_reuse() {
     {
         let mut cursor = execute(&mut session, &query).await.unwrap();
         assert_eq!(
-            cursor.next().unwrap().unwrap().column(0).as_any().downcast_ref::<StringArray>().unwrap().value(0),
+            cursor
+                .next()
+                .unwrap()
+                .unwrap()
+                .column(0)
+                .as_any()
+                .downcast_ref::<StringArray>()
+                .unwrap()
+                .value(0),
             "Ada"
         );
         // Deliberately leave two rows unread.
@@ -328,7 +367,11 @@ async fn existing_view_is_used_without_materializing_or_changing_source_tables()
 async fn arrow_schema_nulls_multiple_batches_and_retained_buffers() {
     let db = database();
     db.execute_batch("DELETE FROM follows; DELETE FROM people; INSERT INTO people SELECT i, CASE WHEN i % 7 = 0 THEN NULL ELSE 'person-' || i END FROM range(10000) t(i)").unwrap();
-    let query = plan(request("cypher", "MATCH (p:Person) RETURN p.name AS name ORDER BY p.id")).await;
+    let query = plan(request(
+        "cypher",
+        "MATCH (p:Person) RETURN p.name AS name ORDER BY p.id",
+    ))
+    .await;
     let mut session = Session::new(&db);
     let retained;
     {
@@ -337,13 +380,20 @@ async fn arrow_schema_nulls_multiple_batches_and_retained_buffers() {
         retained = reader.next().unwrap().unwrap();
         let mut total = retained.num_rows();
         let mut batches = 1;
-        for batch in reader { total += batch.unwrap().num_rows(); batches += 1; }
+        for batch in reader {
+            total += batch.unwrap().num_rows();
+            batches += 1;
+        }
         assert_eq!(total, 10000);
         assert!(batches > 1);
     }
     drop(session);
     drop(db);
-    let values = retained.column(0).as_any().downcast_ref::<StringArray>().unwrap();
+    let values = retained
+        .column(0)
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .unwrap();
     assert!(values.is_null(0));
     assert_eq!(values.value(1), "person-1");
 }

@@ -14,6 +14,14 @@ for batch in &mut batches {
 }
 ```
 
+Add the client to an application's Cargo.toml (Cargo.lock records the commit;
+production applications should also set `rev` to their reviewed commit):
+
+```toml
+[dependencies]
+orchiddb-client = { git = "https://github.com/OrchidDB/OrchidDB-rust", branch = "main", default-features = false }
+```
+
 Run the complete caller-owned DuckDB example:
 
 ```sh

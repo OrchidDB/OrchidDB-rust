@@ -8,7 +8,7 @@ repository = "https://github.com/OrchidDB/OrchidDB-rust"
 publish = false
 
 [dependencies]
-orchiddb = { path = "../orchiddb", default-features = false }
+orchiddb = { git = "https://github.com/OrchidDB/OrchidDB.git", rev = "2594565cf17a9fdaf79f5602387317a4425196ee", default-features = false }
 arrow = "58.2.0"
 
 [features]
