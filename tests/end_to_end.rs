@@ -247,7 +247,7 @@ async fn dropping_a_partial_cursor_allows_session_reuse() {
                 .value(0),
             "Ada"
         );
-        // Deliberately leave two rows unread.
+        // Deliberately drop without advancing the reader to end-of-stream.
     }
     assert_eq!(
         names(&mut session, &query).await,
