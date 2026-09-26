@@ -14,23 +14,20 @@ for batch in &mut batches {
 }
 ```
 
-Add the client to an application's Cargo.toml (Cargo.lock records the commit;
-production applications should also set `rev` to their reviewed commit):
+Add the published client to your application's Cargo.toml:
 
 ```toml
 [dependencies]
-orchiddb-client = { git = "https://github.com/OrchidDB/OrchidDB-rust", branch = "main", default-features = false }
+orchiddb-client = { version = "=0.1.0", default-features = false }
 ```
 
 Run the complete caller-owned DuckDB example:
 
 ```sh
-cargo run --example borrowed_duckdb --features bundled-test-driver
-cargo test --features bundled-test-driver
+cargo run --manifest-path examples/Cargo.toml --features bundled
 ```
 
-DuckDB is dev-only. The optional `bundled-test-driver` feature builds it for
-examples and tests; default features are empty. To use an existing matching
+The standalone example depends on crates.io packages, including its own DuckDB driver. Its `bundled` feature builds DuckDB; OrchidDB itself contains no driver. To use an existing matching
 DuckDB 1.5.2 library, set `DUCKDB_LIB_DIR` and omit that feature.
 Retained Rust batches retain their buffers after advancing/dropping the reader.
 Dropping readers releases the mutable session borrow. Arrow batch transport does
@@ -42,10 +39,9 @@ borrowed connections, native Arrow schema/batches, and caller-controlled rollbac
 
 ## Releases
 
-Version 0.1.0 is prepared for crates.io as `orchiddb-client`, depending on
+Version 0.1.0 is published on crates.io as `orchiddb-client`, depending on
 `orchiddb = 0.1.0`. The engine embeds its modified SPARQL parser; no separate
-parser crate is needed. The Git dependency stays pinned for development until
-the first registry release is available.
+parser crate is needed. The library checkout retains its pinned Git dependency for core development; the standalone example uses the published registry dependency.
 
 Run the manual `release.yml` workflow with `ref=main`, `publish=false` to test
 and verify both registry archives before either is published. Download the
