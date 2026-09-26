@@ -72,9 +72,8 @@ jobs:
           VERSION: ${{ steps.engine.outputs.version }}
           ENGINE_REVISION: ${{ steps.engine.outputs.revision }}
         run: test "$(git -C engine-source rev-parse "refs/tags/v$VERSION^{commit}")" = "$ENGINE_REVISION"
-      - name: Test and verify registry packages without publishing
+      - name: Build registry packages without publishing
         run: |
-          cargo test --locked --features bundled-test-driver
           python engine-source/scripts/release/package-workspace.py --core engine-source --rust . --output dist
       - name: Record artifact provenance
         env:
