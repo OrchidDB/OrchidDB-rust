@@ -25,12 +25,13 @@ orchiddb-client = { git = "https://github.com/OrchidDB/OrchidDB-rust", branch = 
 Run the complete caller-owned DuckDB example:
 
 ```sh
-cargo run --example borrowed_duckdb
-cargo test
+cargo run --example borrowed_duckdb --features bundled-test-driver
+cargo test --features bundled-test-driver
 ```
 
-DuckDB is dev-only, bundled by the test feature. To use an existing matching
-DuckDB 1.5.2 library set `DUCKDB_LIB_DIR` and run with `--no-default-features`.
+DuckDB is dev-only. The optional `bundled-test-driver` feature builds it for
+examples and tests; default features are empty. To use an existing matching
+DuckDB 1.5.2 library, set `DUCKDB_LIB_DIR` and omit that feature.
 Retained Rust batches retain their buffers after advancing/dropping the reader.
 Dropping readers releases the mutable session borrow. Arrow batch transport does
 not guarantee streaming execution inside every database.
