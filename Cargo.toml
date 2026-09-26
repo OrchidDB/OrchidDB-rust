@@ -9,7 +9,7 @@ publish = ["crates-io"]
 include = ["src/**", "examples/**", "Cargo.toml", "Cargo.lock", "README.md", "LICENSE.md"]
 
 [dependencies]
-orchiddb = { version = "=0.1.0", git = "https://github.com/OrchidDB/OrchidDB.git", rev = "2280d26134ce0cd6abc9f76876061ece95b806a5", default-features = false }
+orchiddb = { version = "=0.1.0", git = "https://github.com/OrchidDB/OrchidDB.git", rev = "18ad70a9ad461e126a739b5c99f10c13622f33e6", default-features = false }
 arrow = "58.2.0"
 
 [features]
