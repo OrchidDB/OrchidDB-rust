@@ -2372,7 +2372,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 [[package]]
 name = "orchiddb"
 version = "0.1.0"
-source = "git+https://github.com/OrchidDB/OrchidDB.git?rev=2594565cf17a9fdaf79f5602387317a4425196ee#2594565cf17a9fdaf79f5602387317a4425196ee"
+source = "git+https://github.com/OrchidDB/OrchidDB.git?rev=e01ab119a7e6a4896d68733220b8185689a05952#e01ab119a7e6a4896d68733220b8185689a05952"
 dependencies = [
  "antlr4rust",
  "arrow",
@@ -2387,14 +2387,17 @@ dependencies = [
  "md-5",
  "num-bigint",
  "num-traits",
+ "oxilangtag",
  "oxiri",
+ "oxrdf",
  "oxsdatatypes",
+ "peg",
+ "rand 0.8.8",
  "regex",
  "reqwest",
  "serde",
  "serde_json",
  "sha2",
- "spargebra",
  "stacker",
  "thiserror",
  "tokio",
@@ -3165,19 +3168,6 @@ checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "spargebra"
-version = "0.4.7"
-source = "git+https://github.com/OrchidDB/OrchidDB.git?rev=2594565cf17a9fdaf79f5602387317a4425196ee#2594565cf17a9fdaf79f5602387317a4425196ee"
-dependencies = [
- "oxilangtag",
- "oxiri",
- "oxrdf",
- "peg",
- "rand 0.9.5",
- "thiserror",
 ]
 
 [[package]]

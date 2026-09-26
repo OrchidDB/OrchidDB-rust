@@ -1,69 +1,112 @@
-name: Release
+name: Prepare Rust release
 on:
-  push:
-    tags: ['v[0-9]*']
   workflow_dispatch:
     inputs:
-      tag:
-        description: Existing version tag
+      ref:
+        description: Commit, branch, or existing v0.1.0 tag to verify
+        type: string
+        default: main
         required: true
+      publish:
+        description: Publish to crates.io (requires an existing matching version tag)
+        type: boolean
+        default: false
 permissions:
   contents: read
+concurrency:
+  group: rust-release-${{ inputs.ref }}
+  cancel-in-progress: false
+env:
+  CARGO_BUILD_JOBS: '2'
+  CARGO_PROFILE_DEV_DEBUG: '0'
+  RUST_MIN_STACK: '16777216'
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-22.04
-            platform: linux-x86_64
-          - os: macos-14
-            platform: macos-aarch64
-          - os: macos-15-intel
-            platform: macos-x86_64
-    runs-on: ${{ matrix.os }}
-    env:
-      CARGO_BUILD_JOBS: 2
-      CARGO_PROFILE_DEV_DEBUG: 0
-      RUST_MIN_STACK: 16777216
-      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+  package:
+    runs-on: ubuntu-22.04
+    outputs:
+      commit: ${{ steps.source.outputs.commit }}
+      version: ${{ steps.source.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: refs/tags/${{ inputs.tag || github.ref_name }}
-      - uses: dtolnay/rust-toolchain@stable
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@1.93.1
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Validate release version
-        run: python -c 'import os,tomllib; assert os.environ["RELEASE_TAG"] == "v" + tomllib.load(open("Cargo.toml","rb"))["package"]["version"]'
-      - run: cargo test --locked
-      - name: Package source
+      - name: Validate source and publish intent
+        id: source
+        env:
+          RELEASE_REF: ${{ inputs.ref }}
+          PUBLISH: ${{ inputs.publish }}
         run: |
-          mkdir -p dist
-          git archive --format=tar.gz --prefix=orchiddb-rust/ HEAD > "dist/orchiddb-rust-${RELEASE_TAG}-${{ matrix.platform }}.tar.gz"
+          python - <<'PYTHON'
+          import os, subprocess, tomllib
+          version = tomllib.load(open('Cargo.toml', 'rb'))['package']['version']
+          commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          if os.environ['PUBLISH'] == 'true':
+              tag = 'v' + version
+              if os.environ['RELEASE_REF'] != tag:
+                  raise SystemExit('Publishing requires ref=' + tag)
+              tagged = subprocess.check_output(['git', 'rev-parse', 'refs/tags/' + tag + '^{commit}'], text=True).strip()
+              if tagged != commit:
+                  raise SystemExit('Tag does not match the checked-out commit')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write('commit=' + commit + '\nversion=' + version + '\n')
+          PYTHON
+      - name: Read the pinned engine revision
+        id: engine
+        run: python -c 'import tomllib,os; p=tomllib.load(open("Cargo.toml","rb")); open(os.environ["GITHUB_OUTPUT"],"a").write("revision="+p["dependencies"]["orchiddb"]["rev"]+"\nversion="+p["dependencies"]["orchiddb"]["version"].removeprefix("=")+"\n")'
+      - uses: actions/checkout@v4
+        with:
+          repository: OrchidDB/OrchidDB
+          ref: ${{ steps.engine.outputs.revision }}
+          path: engine-source
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require the published engine tag to match the client pin
+        if: ${{ inputs.publish }}
+        env:
+          VERSION: ${{ steps.engine.outputs.version }}
+          ENGINE_REVISION: ${{ steps.engine.outputs.revision }}
+        run: test "$(git -C engine-source rev-parse "refs/tags/v$VERSION^{commit}")" = "$ENGINE_REVISION"
+      - name: Test and verify registry packages without publishing
+        run: python engine-source/scripts/release/package-workspace.py --core engine-source --rust . --output dist --test
+      - name: Record artifact provenance
+        env:
+          SOURCE_COMMIT: ${{ steps.source.outputs.commit }}
+        run: |
+          printf '%s\n' "$SOURCE_COMMIT" > dist/SOURCE_COMMIT
+          cd dist
+          sha256sum ./*.crate SOURCE_COMMIT > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: package-${{ matrix.platform }}
-          path: dist/*.tar.gz
+          name: verified-crates
+          path: dist/*
           if-no-files-found: error
-  release:
-    needs: build
+          retention-days: 30
+  publish:
+    if: ${{ inputs.publish }}
+    needs: package
     runs-on: ubuntu-22.04
-    permissions:
-      contents: write
-    env:
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
-      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    environment: crates-io
     steps:
+      - uses: dtolnay/rust-toolchain@1.93.1
       - uses: actions/download-artifact@v4
         with:
-          pattern: package-*
-          merge-multiple: true
+          name: verified-crates
           path: dist
-      - name: Create draft release
-        shell: bash
+      - name: Publish the verified orchiddb-client archive
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          VERSION: ${{ needs.package.outputs.version }}
+          SOURCE_COMMIT: ${{ needs.package.outputs.commit }}
         run: |
+          test -n "$CARGO_REGISTRY_TOKEN"
           cd dist
-          sha256sum ./*.tar.gz > SHA256SUMS
-          gh release create "$RELEASE_TAG" ./*.tar.gz SHA256SUMS --verify-tag --draft --title "$RELEASE_TAG" --notes 'Validated release artifacts. See repository README for setup and dependency ownership.'
+          sha256sum -c SHA256SUMS
+          test "$(cat SOURCE_COMMIT)" = "$SOURCE_COMMIT"
+          tar -xzf "orchiddb-client-$VERSION.crate"
+          cargo publish --locked --manifest-path "orchiddb-client-$VERSION/Cargo.toml"

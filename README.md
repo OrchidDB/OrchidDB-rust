@@ -41,12 +41,15 @@ borrowed connections, native Arrow schema/batches, and caller-controlled rollbac
 
 ## Releases
 
-Use a pinned Git dependency from this repository (`package = "orchiddb-client"`).
-The release workflow validates `vVERSION`, tests, and creates a draft GitHub release
-with a checksummed source archive. The core commit is pinned in Cargo.toml/lock.
-Crates.io publication is deliberately disabled: the compiler is not yet published
-and depends on a modified path-vendored spargebra. Publishing a manifest rewritten
-to upstream spargebra would silently change compiler behavior. Once core and its
-parser dependency are publishable, replace Git dependencies with versioned crates,
-remove `publish = false`, and configure a crates.io token/trusted publisher.
-The existing OrchidDB license applies; see LICENSE.md.
+Version 0.1.0 is prepared for crates.io as `orchiddb-client`, depending on
+`orchiddb = 0.1.0`. The engine embeds its modified SPARQL parser; no separate
+parser crate is needed. The Git dependency stays pinned for development until
+the first registry release is available.
+
+Run the manual `release.yml` workflow with `ref=main`, `publish=false` to test
+and verify both registry archives before either is published. Download the
+checksummed `verified-crates` workflow artifact for inspection. Nothing is
+uploaded to crates.io unless `publish=true` is explicitly selected with a
+matching existing version tag. Publish the engine first, then the client.
+Both use the `CARGO_REGISTRY_TOKEN` secret in the `crates-io` environment.
+The CLI is distributed separately through GitHub Releases.
