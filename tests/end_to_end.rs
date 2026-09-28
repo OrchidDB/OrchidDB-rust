@@ -397,3 +397,173 @@ async fn arrow_schema_nulls_multiple_batches_and_retained_buffers() {
     assert!(values.is_null(0));
     assert_eq!(values.value(1), "person-1");
 }
+
+#[tokio::test]
+async fn statistics_protocol_retains_snapshot_and_preserves_diagnostics() {
+    use orchiddb_client::Statistics;
+    let r = request("cypher", "MATCH (p:Person) RETURN p.name AS name");
+    let mut statistics = Statistics::default();
+    let mut calls = 0;
+    statistics
+        .generate(r.clone(), |_work| {
+            calls += 1;
+            async { Err("Test adapter cannot bound this request".to_string()) }
+        })
+        .await
+        .unwrap();
+    assert!(calls > 0);
+    assert!(statistics.snapshot().is_some());
+    assert!(statistics.report().is_some());
+    let typed = statistics.compile_plan(r.clone()).await.unwrap();
+    assert!(typed.statistics_usage.is_some());
+    let snapshot = statistics.snapshot().unwrap().clone();
+    let with = statistics.compile(r.clone()).await.unwrap();
+    assert!(with.get("statistics_usage").is_some());
+    assert!(with.get("plan_estimates").is_some());
+    statistics.clear().await.unwrap();
+    assert!(statistics.snapshot().is_none());
+    statistics.install(snapshot.clone()).await.unwrap();
+    assert_eq!(statistics.snapshot(), Some(&snapshot));
+    assert_eq!(statistics.compile(r).await.unwrap()["sql"], with["sql"]);
+    statistics.clear().await.unwrap();
+}
+
+#[tokio::test]
+async fn failed_statistics_generation_keeps_the_previous_snapshot() {
+    use orchiddb_client::Statistics;
+    let r = request("cypher", "MATCH (p:Person) RETURN p.name AS name");
+    let mut statistics = Statistics::default();
+    statistics
+        .generate(r.clone(), |_| async {
+            Err("Unsupported adapter".to_string())
+        })
+        .await
+        .unwrap();
+    let previous = statistics.snapshot().unwrap().clone();
+    assert!(
+        statistics
+            .generate(r, |_| async { Ok(json!(null)) })
+            .await
+            .is_err()
+    );
+    assert_eq!(statistics.snapshot(), Some(&previous));
+    statistics.clear().await.unwrap();
+}
+
+#[path = "../examples/support/duckdb_statistics.rs"]
+mod statistics_adapter;
+
+#[tokio::test]
+async fn generated_statistics_use_the_existing_session_and_keep_all_languages_correct() {
+    use orchiddb_client::Statistics;
+    let db = database();
+    let base = request(
+        "cypher",
+        "MATCH (p:Person) RETURN p.name AS name ORDER BY name",
+    );
+    let mut statistics = Statistics::default();
+    statistics
+        .generate(base, |work| {
+            let result = statistics_adapter::collect_statistics(&db, &work);
+            async move { result }
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        statistics.snapshot().unwrap()["sources"]["people"]["sample_rows"],
+        3
+    );
+    assert_eq!(
+        statistics.snapshot().unwrap()["sources"]["follows"]["sample_rows"],
+        2
+    );
+    assert!(
+        statistics.report().unwrap()["skipped"]
+            .as_object()
+            .unwrap()
+            .is_empty()
+    );
+    for (language, query) in [
+        (
+            "cypher",
+            "MATCH (p:Person) RETURN p.name AS name ORDER BY name",
+        ),
+        ("gremlin", "g.V().hasLabel('Person').values('name').order()"),
+        (
+            "sparql",
+            "SELECT ?name WHERE { ?p a <http://example.org/Person> ; <http://example.org/name> ?name . } ORDER BY ?name",
+        ),
+    ] {
+        let plan = statistics.compile(request(language, query)).await.unwrap();
+        let mut statement = db.prepare(plan["sql"].as_str().unwrap()).unwrap();
+        let names = statement
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(names, ["Ada", "Grace", ADVERSARIAL_NAME]);
+        assert!(plan.get("statistics_usage").is_some());
+    }
+    statistics.clear().await.unwrap();
+    assert_eq!(count(&db), 3);
+}
+
+#[tokio::test]
+async fn statistics_drop_and_cancel_release_native_capacity() {
+    use orchiddb_client::Statistics;
+    use std::{
+        future::Future,
+        task::{Context, Poll, Waker},
+    };
+    let r = request("cypher", "MATCH (p:Person) RETURN p.name AS name");
+    // Exceed coordinator analysis capacity sequentially; cancelled futures must
+    // release it even while an application callback is suspended.
+    let mut statistics = Statistics::default();
+    for _ in 0..20 {
+        let future = statistics.generate(r.clone(), |_| async {
+            std::future::pending::<Result<Value, String>>().await
+        });
+        let mut future = std::pin::pin!(future);
+        assert!(matches!(
+            future
+                .as_mut()
+                .poll(&mut Context::from_waker(Waker::noop())),
+            Poll::Pending
+        ));
+    }
+    // Exceed catalog capacity sequentially without explicitly calling clear.
+    for _ in 0..70 {
+        let mut temporary = Statistics::default();
+        temporary
+            .generate(r.clone(), |_| async {
+                Err("Unsupported test session".to_string())
+            })
+            .await
+            .unwrap();
+    }
+}
+
+#[tokio::test]
+async fn transport_truncation_is_not_reported_as_an_empty_table() {
+    use orchiddb_client::Statistics;
+    let db = database();
+    let mut statistics = Statistics::default();
+    statistics
+        .generate(
+            request("cypher", "MATCH (p:Person) RETURN p.name"),
+            |mut work: Value| {
+                if work["kind"] != "metadata" {
+                    work["max_bytes"] = json!(1);
+                }
+                let result = statistics_adapter::collect_statistics(&db, &work);
+                async move { result }
+            },
+        )
+        .await
+        .unwrap();
+    let source = &statistics.snapshot().unwrap()["sources"]["people"];
+    assert_eq!(source["sample_rows"], 0);
+    assert_ne!(source["estimated_rows"], json!(0.0));
+    assert_ne!(source["method"], "complete bounded read");
+    assert_eq!(statistics.report().unwrap()["complete"], false);
+}

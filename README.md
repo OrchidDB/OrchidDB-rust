@@ -50,3 +50,50 @@ uploaded to crates.io unless `publish=true` is explicitly selected with a
 matching existing version tag. Publish the engine first, then the client.
 Both use the `CARGO_REGISTRY_TOKEN` secret in the `crates-io` environment.
 The CLI is distributed separately through GitHub Releases.
+
+## One-time statistics
+
+`Statistics` retains a shared-core catalog for repeated compilation. Generation
+can involve multiple SQL requests, all chosen by Rust core; client adapters do
+not calculate estimates or choose collection profiles.
+
+```rust,ignore
+let mut statistics = orchiddb_client::Statistics::default();
+statistics.generate(request.clone(), |work| {
+    // Reuse the application's session. The adapter must enforce timeout_ms,
+    // max_rows, and max_bytes. Return rows or base64 Arrow IPC, or an error when
+    // bounded execution is unavailable. See statistics::StatisticsCollector
+    // for stateful adapters borrowing a connection.
+    application.collect_bounded(work)
+}).await?;
+let plan = statistics.compile(request).await?;
+statistics.save("statistics.json")?;
+statistics.clear().await?;
+statistics.load("statistics.json").await?;
+```
+
+`compile_plan(request)` returns the normal typed `CompiledSql` for
+`execute(session, &plan)`, reusing the cached statistics Arc directly.
+`report()` exposes collection coverage and skipped work; `snapshot()` exposes the
+portable JSON catalog. `compile()` preserves all diagnostics, including
+`statistics_usage`, `plan_estimates`, layout and representation decisions. With
+no catalog it uses the existing compiler. Regeneration replaces the previous
+catalog only after success. No compilation reads data and no background refresh
+runs. Clear retained catalogs after their last user finishes; dropping `Statistics`
+also releases its native handle. Dropping an in-progress generation future
+cancels its coordinator state and retains the previous catalog.
+
+The lower-level `statistics::command` API exposes begin/next/submit/finish,
+install/release, and cached compile for applications that need their own batch
+or cancellation orchestration. Explicit cancellation should send `cancel` for
+an in-progress analysis. Callback failures report skipped sources; aborting the
+whole operation preserves the previously installed catalog.
+
+Collectors must set `truncated: true` when transport limits stop a response before
+EOF; the coordinator retains those observations as a partial sample. It must not
+infer a complete source row count from a shortened response.
+
+For a complete adapter with a DuckDB interruption deadline, run
+`cargo run --example statistics` (with the same DuckDB linkage as the other
+examples). The example borrows the application's connection; it does not create
+an OrchidDB-owned database session.

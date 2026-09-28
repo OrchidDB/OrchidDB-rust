@@ -9,8 +9,9 @@ publish = ["crates-io"]
 include = ["src/**", "examples/**", "Cargo.toml", "Cargo.lock", "README.md", "LICENSE.md"]
 
 [dependencies]
-orchiddb = { version = "=0.1.0", git = "https://github.com/OrchidDB/OrchidDB.git", rev = "18ad70a9ad461e126a739b5c99f10c13622f33e6", default-features = false }
+orchiddb = { version = "=0.1.0", git = "https://github.com/OrchidDB/OrchidDB.git", rev = "aa4954d5426dccabe1b731fc9654ea2a0e6f38b5", default-features = false }
 arrow = "58.2.0"
+serde_json = "1"
 
 [features]
 default = []
@@ -18,5 +19,4 @@ bundled-test-driver = ["duckdb/bundled"]
 
 [dev-dependencies]
 duckdb = "=1.10502.0"
-serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
