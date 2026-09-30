@@ -150,6 +150,62 @@ async fn cypher_maps_nodes_and_relationships_against_real_tables() {
 }
 
 #[tokio::test]
+async fn permission_scopes_filter_direct_and_project_grants() {
+    let db = Connection::open_in_memory().unwrap();
+    db.execute_batch(
+        "CREATE TABLE documents(id BIGINT, project_id BIGINT, title VARCHAR);
+        INSERT INTO documents VALUES (1, 10, 'direct'), (2, 20, 'project'), (3, 30, 'denied');
+        CREATE TABLE grants(resource_type VARCHAR, resource_rel VARCHAR, resource_id VARCHAR,
+            subject_type VARCHAR, subject_rel VARCHAR, subject_id VARCHAR);
+        INSERT INTO grants VALUES ('document','view','1','user','','alice'),
+            ('project','view','20','user','','alice'), ('project','view','30','user','','bob');",
+    )
+    .unwrap();
+    let request = json!({
+        "version":1, "dialect":"duckdb", "language":"cypher",
+        "query":"MATCH (d:Document) RETURN d.title AS title ORDER BY title",
+        "authorization":{"subject_type":"user", "subject_id":"alice"},
+        "tables":[
+            {"name":"documents", "columns":[
+                {"name":"id", "data_type":"int64"}, {"name":"project_id", "data_type":"int64"},
+                {"name":"title", "data_type":"string"}]},
+            {"name":"grants", "columns":[
+                {"name":"resource_type", "data_type":"string"}, {"name":"resource_rel", "data_type":"string"},
+                {"name":"resource_id", "data_type":"string"}, {"name":"subject_type", "data_type":"string"},
+                {"name":"subject_rel", "data_type":"string"}, {"name":"subject_id", "data_type":"string"}]}
+        ],
+        "nodes":[{"label":"Document", "table":"documents", "id":"id",
+            "properties":{"title":"title", "project_id":"project_id"},
+            "permission_scopes":[
+                {"resource_column":"id", "relation":{"table":"grants", "resource_type":"document", "permission":"view"}},
+                {"resource_column":"project_id", "relation":{"table":"grants", "resource_type":"project", "permission":"view"}}
+            ]}]
+    });
+    let compiled = plan(request.clone()).await;
+    let mut statement = db.prepare(&compiled.sql).unwrap();
+    let mut batches = statement.query_arrow([]).unwrap();
+    let mut names = Vec::new();
+    while let Some(batch) = batches.next() {
+        let values = batch
+            .column(0)
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .unwrap();
+        names.extend(values.iter().map(|value| value.unwrap().to_string()));
+    }
+    assert_eq!(names, ["direct", "project"]);
+
+    let no_principal = serde_json::from_value::<orchiddb::compiler::CompileRequest>({
+        let mut request = request.clone();
+        request.as_object_mut().unwrap().remove("authorization");
+        request
+    })
+    .unwrap();
+    let error = compile(no_principal).await.unwrap_err();
+    assert!(error.contains("requires a principal"));
+}
+
+#[tokio::test]
 async fn gremlin_traverses_mapped_relationships() {
     let db = database();
     let query = plan(request("gremlin", "g.V(1).out('FOLLOWS').values('name')")).await;

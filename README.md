@@ -35,6 +35,12 @@ not guarantee streaming execution inside every database.
 
 See [the example](examples/borrowed_duckdb.rs) for mappings, declared UDF signatures,
 borrowed connections, native Arrow schema/batches, and caller-controlled rollback.
+
+## Permission pushdown
+
+Supply effective grants as a mapped table and add scopes to the node request. A scope matches the permission relation's resource ID against a node source column; multiple scopes are ORed, so direct object grants and project or tenant grants can both authorize a row. The compiler fails closed if scopes are present without a principal. The relation must already contain effective grants; this client does not connect to a permission service or sync grants.
+
+The JSON v1 request accepts top-level `authorization: {subject_type, subject_id}` and a node's `permission_scopes`, where each scope has `resource_column` and a `relation` containing `table`, `resource_type`, and `permission`. `PermissionRelation::flat(table, resource_type, permission)` uses the conventional relation columns, and `PermissionScope::new` and `Authorization::new` build typed values.
 [Core protocol documentation](https://github.com/OrchidDB/OrchidDB/blob/main/docs/compiler.md).
 
 ## Releases

@@ -3,7 +3,10 @@
 pub use arrow;
 pub use arrow::record_batch::{RecordBatch, RecordBatchReader};
 pub use orchiddb::compiler;
-pub use orchiddb::compiler::{CompileRequest, CompiledSql, compile, compile_json};
+pub use orchiddb::compiler::{
+    Authorization, CompileRequest, CompiledSql, Node, PermissionRelation, PermissionScope, compile,
+    compile_json,
+};
 pub use orchiddb::execution::{ExecutionError, SqlDialect, SqlSession, execute};
 
 pub mod statistics;
