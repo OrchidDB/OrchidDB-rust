@@ -11,3 +11,6 @@ pub use orchiddb::execution::{ExecutionError, SqlDialect, SqlSession, execute};
 
 pub mod statistics;
 pub use statistics::Statistics;
+
+/// SQL island planning and execution across application-owned sessions.
+pub use orchiddb::federation;
