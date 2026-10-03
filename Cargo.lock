@@ -2217,8 +2217,8 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "orchiddb"
-version = "0.1.0"
-source = "git+https://github.com/OrchidDB/OrchidDB.git?rev=1578b8a791db90c1920ec70613d9626d89b0e8dc#1578b8a791db90c1920ec70613d9626d89b0e8dc"
+version = "0.2.0"
+source = "git+https://github.com/OrchidDB/OrchidDB.git?rev=bf09d823e1a8e247bb07f534ec19fe12e9675b17#bf09d823e1a8e247bb07f534ec19fe12e9675b17"
 dependencies = [
  "antlr4rust",
  "arrow",
@@ -2254,7 +2254,7 @@ dependencies = [
 
 [[package]]
 name = "orchiddb-client"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "arrow",
  "duckdb",
@@ -2286,7 +2286,7 @@ checksum = "4be15186205eb60ddbdc2fb47cb25df472c7f399bbe119b68c0972b6b6dd46ea"
 dependencies = [
  "oxilangtag",
  "oxiri",
- "rand 0.8.8",
+ "rand 0.9.5",
  "thiserror",
 ]
 

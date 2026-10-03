@@ -2217,7 +2217,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "orchiddb"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7884deb1791d685b2337cf7d6b36dd8261997847b99b35346de6d62abca318d"
 dependencies = [
@@ -2252,7 +2252,7 @@ dependencies = [
 
 [[package]]
 name = "orchiddb-client"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "843e0d6e64f625b5b36b5e5726fb9e865c441b22d98ee6fea9ee0886795a6486"
 dependencies = [

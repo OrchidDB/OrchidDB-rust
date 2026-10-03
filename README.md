@@ -3,8 +3,8 @@
 Compile Cypher, Gremlin text, or SPARQL to SQL. Execute through your own
 `SqlSession`, whose result implements Arrow 58 `RecordBatchReader`.
 No database driver is a production dependency. You own connections, transactions,
-extensions, UDFs, schema discovery, and cache invalidation. Cross-engine federation
-is not implemented; route a plan to one compatible engine.
+extensions, UDFs, schema discovery, and cache invalidation. SQL federation APIs
+compile and bind typed SQL islands for caller-owned execution across engines.
 
 ```rust,ignore
 let plan = orchiddb_client::compile(request).await?;

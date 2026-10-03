@@ -1,6 +1,6 @@
 [package]
 name = "orchiddb-client"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "Caller-owned Arrow execution for OrchidDB graph queries"
 license = "GPL-3.0-only"
@@ -9,7 +9,7 @@ publish = ["crates-io"]
 include = ["src/**", "examples/**", "Cargo.toml", "Cargo.lock", "README.md", "LICENSE.md"]
 
 [dependencies]
-orchiddb = { version = "=0.1.0", git = "https://github.com/OrchidDB/OrchidDB.git", rev = "1578b8a791db90c1920ec70613d9626d89b0e8dc", default-features = false }
+orchiddb = { version = "=0.2.0", git = "https://github.com/OrchidDB/OrchidDB.git", rev = "bf09d823e1a8e247bb07f534ec19fe12e9675b17", default-features = false }
 arrow = "58.2.0"
 serde_json = "1"
 
